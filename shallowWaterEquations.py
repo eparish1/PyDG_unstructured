@@ -1,12 +1,18 @@
 import numpy as np
-from postProcessCore import * 
-
+try:
+  from postProcessCore import *
+  canWriteToVtk = True
+except:
+  print('Error importing postproocessing core, cannot use VTK')
+  canWriteToVtk = False
 class shallowWaterEquations:
   nvars = 3
   def writeSol(self,string,U,grid):
-    triangle_faces_to_VTK(string,x=grid.triQ.points[:,0],y=grid.triQ.points[:,1],z=grid.triQ.points[:,0]*0,faces = grid.triQ.vertices,point_data=None,\
-             cell_data={'h':np.mean(U[0].flatten()[grid.triQ.vertices[:,:]],axis=1),'hU':np.mean(U[1].flatten()[grid.triQ.vertices[:,:]],axis=1),\
-             'hV':np.mean(U[2].flatten()[grid.triQ.vertices[:,:]],axis=1)})
+    if canWriteToVtk:
+      triangle_faces_to_VTK(string,x=grid.triQ.points[:,0],y=grid.triQ.points[:,1],z=grid.triQ.points[:,0]*0,faces = grid.triQ.vertices,point_data=None,\
+               cell_data={'h':np.mean(U[0].flatten()[grid.triQ.vertices[:,:]],axis=1),'hU':np.mean(U[1].flatten()[grid.triQ.vertices[:,:]],axis=1),\
+               'hV':np.mean(U[2].flatten()[grid.triQ.vertices[:,:]],axis=1)})
+    np.savez(string,x=grid.triQ.points[:,0],y=grid.triQ.points[:,1],U=U)
 
   def flux(self,u):
     fx = np.zeros(np.shape(u))

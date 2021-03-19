@@ -1,14 +1,20 @@
 import numpy as np
-from postProcessCore import * 
+try:
+  from postProcessCore import *
+  canWriteToVtk = True
+except:
+  print('Error importing postproocessing core, cannot use VTK')
+  canWriteToVtk = False 
 class eulerEquations:
   nvars = 4
   def writeSol(self,string,U,grid):
-    p = (1.4 - 1.)*(U[3] - 0.5*U[1]**2/U[0] - 0.5*U[2]**2/U[0])
-    triangle_faces_to_VTK(string,x=grid.triQ.points[:,0],y=grid.triQ.points[:,1],z=grid.triQ.points[:,0]*0,faces = grid.triQ.vertices,point_data=None,\
-             cell_data={'rho':np.mean(U[0].flatten()[grid.triQ.vertices[:,:]],axis=1),'rhoU':np.mean(U[1].flatten()[grid.triQ.vertices[:,:]],axis=1),\
-             'rhoV':np.mean(U[2].flatten()[grid.triQ.vertices[:,:]],axis=1),'rhoE':np.mean(U[3].flatten()[grid.triQ.vertices[:,:]],axis=1),\
-             'p':np.mean(p.flatten()[grid.triQ.vertices[:,:]],axis=1)})
-
+    if canWriteToVtk:
+      p = (1.4 - 1.)*(U[3] - 0.5*U[1]**2/U[0] - 0.5*U[2]**2/U[0])
+      triangle_faces_to_VTK(string,x=grid.triQ.points[:,0],y=grid.triQ.points[:,1],z=grid.triQ.points[:,0]*0,faces = grid.triQ.vertices,point_data=None,\
+               cell_data={'rho':np.mean(U[0].flatten()[grid.triQ.vertices[:,:]],axis=1),'rhoU':np.mean(U[1].flatten()[grid.triQ.vertices[:,:]],axis=1),\
+               'rhoV':np.mean(U[2].flatten()[grid.triQ.vertices[:,:]],axis=1),'rhoE':np.mean(U[3].flatten()[grid.triQ.vertices[:,:]],axis=1),\
+               'p':np.mean(p.flatten()[grid.triQ.vertices[:,:]],axis=1)})
+    np.savez(string,x=grid.triQ.points[:,0],y=grid.triQ.points[:,1],U=U)
 
   def flux(self,u):
     fx = np.zeros(np.shape(u))

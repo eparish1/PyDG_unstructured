@@ -1,4 +1,5 @@
 import numpy as np
+import copy
 from scipy.spatial import Delaunay
 from myQuadRules import *
 from basisFunctions import *
@@ -30,7 +31,7 @@ def edgeToTri2(IE,fluxx):
   nedges = np.shape(IE)[0]
   edge_quads = np.shape(fluxx)[1]
   nvars = np.shape(fluxx)[0]
-  Ntris = np.amax(IE) + 1
+  Ntris = np.amax(IE[:,2:4]) + 1
   triFlux = np.zeros((nvars,edge_quads,3,Ntris))
   triInd = IE[:,2]
   edgeInd = IE[:,4]
@@ -261,3 +262,51 @@ class createGrid:
     self.triQ = Delaunay(XQ.transpose())
 
 
+
+class createHyperGrid:
+  def __init__(self,grid,sampleElements):
+    self.tri = copy.deepcopy(grid.tri)
+    nInteriorEdges = np.shape(grid.tri.IE)[0]
+    self.tri.IE = np.zeros( (0,np.shape(grid.tri.IE)[1] ) ,dtype='int')
+    #self.tri.Jedge = np.zeros(0)
+    stencilElements = copy.deepcopy(sampleElements)
+    for i in range(0,nInteriorEdges):
+      triInd = grid.tri.IE[i,2]
+      edgeInd = grid.tri.IE[i,4]
+      triInd2 = grid.tri.IE[i,3]
+      edgeInd2 = grid.tri.IE[i,5]     
+      # check if edge touches a sample cell
+      if (triInd in sampleElements or triInd2 in sampleElements):
+        #if so, add edge to sample edge mesh, and add both touching cells to stencil mmesh
+        self.tri.IE = np.append(self.tri.IE,grid.tri.IE[i,:][None,:],axis=0)
+        stencilElements = np.append(stencilElements,triInd)
+        stencilElements = np.append(stencilElements,triInd2)
+        stencilElements = np.unique(stencilElements)
+    ## tri IE has coordiantes global coordinates, not local coordinates
+    ## now that the stencil mesh is built, we can convert to local coordinates
+    ## such that indices run  from 0 to size(sampleElements)
+    for i in range(0,np.shape(self.tri.IE)[0]):
+      triGlobInd = self.tri.IE[i,2]
+      triLocInd = np.where(stencilElements == triGlobInd)[0][0]
+      self.tri.IE[i,2] = triLocInd
+      triGlobInd2 = self.tri.IE[i,3]
+      triLocInd2 = np.where(stencilElements == triGlobInd2)[0][0]
+      self.tri.IE[i,3] = triLocInd2
+
+    self.tri.nsimplex = int( np.size(stencilElements) )
+    self.tri.JedgeTri = grid.tri.JedgeTri[:,stencilElements]
+    self.stencilElements = stencilElements 
+    self.tri.Jinv = grid.tri.Jinv[:,:,stencilElements]
+    self.tri.Jdet = grid.tri.Jdet[stencilElements]
+
+    ## Loop over all sample cells to determine where they are in the stencil mesh
+    sampleElementsIds = np.zeros(0,dtype='int') 
+    for i in range(0,np.size(sampleElements)):
+      smGid = sampleElements[i]
+      if (smGid in stencilElements):
+        smLid = np.where(stencilElements == smGid)[0][0]
+        sampleElementsIds = np.append(sampleElementsIds,smLid)
+    self.sampleElementsIds = sampleElementsIds
+    self.sampleElements = sampleElements
+    self.tri.normals = grid.tri.normals[:,:,stencilElements]
+  

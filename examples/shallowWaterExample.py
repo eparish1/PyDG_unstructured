@@ -4,7 +4,6 @@ import numpy as np
 from timeSchemes import *
 import os
 from dgCore import *
-from eulerEquations import eulerEquations,vortexICS
 from shallowWaterEquations import * 
 
 if __name__== "__main__":
@@ -21,8 +20,8 @@ if __name__== "__main__":
   X = np.zeros((2,(Nelx+1)*(Nely+1)))
   X[0] = x
   X[1] = y
-  p = 3
-  quad_order = 6
+  p = 3 #polynomial order
+  quad_order = 6 #quadrature order
   grid = createGrid(X,p,quad_order)
   
   ## Initialize equation set

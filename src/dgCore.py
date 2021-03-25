@@ -6,19 +6,28 @@ from myQuadRules import *
 from basisFunctions import *
 import time
 
+
+
 def computeFlux(tri,u_edges,eqns):
   u1 = u_edges[:,:,tri.IE[:,4],tri.IE[:,2]]
   u2 = u_edges[:,::-1,tri.IE[:,5],tri.IE[:,3]]
   normals = tri.normals[:,tri.IE[:,4],tri.IE[:,2]]
   flux = eqns.inviscidFlux(u1,u2,normals)
-  return flux
+
+  uBC = u_edges[:,:,tri.BE[:,3],tri.BE[:,2] ]
+  uBC2 = uBC[:,:]*1.
+  uBC2[1::] *= -1
+  normalsBC = tri.normals[:,tri.BE[:,3],tri.BE[:,2]]
+  flux_bc = eqns.inviscidFlux(uBC,uBC2,normalsBC)
+  return flux,flux_bc
 
 
 def computeFluxResid(U,tri,eqns):
   nbasis_functions = np.shape(tri.ell_edges)[0] 
   u_edges = reconstructEdges(U,tri.ell_edges) ##reconstruct u at the edges
-  edge_flux = computeFlux(tri,u_edges,eqns) ##get fluxes at edges
-  triFlux = edgeToTri2(tri.IE,edge_flux) #same for y flux
+  edge_flux,edge_flux_bc = computeFlux(tri,u_edges,eqns) ##get fluxes at edges
+  triFlux = edgeToTri2(tri,edge_flux,edge_flux_bc) #same for y flux
+  #triFlux = edgeToTri2BC(tri.BE,edge_flux_bc,triFlux)
   edgeResid = np.zeros((eqns.nvars,nbasis_functions,tri.nsimplex))
   for i in range(0,nbasis_functions):
     edgeResid[:,i] = np.sum( integrateEdge(triFlux*tri.ell_edges[None,i,:,:,None],tri) ,axis=1) ## compute integral on each edge and sum over all edges

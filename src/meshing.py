@@ -25,13 +25,21 @@ def getXFromZeta(tri,zeta):
     xGlob[1,:,i] += verts[1,0,i]
   return xGlob
 
+def edgeToTri2BC(BE,flux_bc,triFlux):
+  triInd = BE[:,2]
+  edgeInd = BE[:,3]
+  triFlux[:,:,edgeInd,triInd] = flux_bc[:,:,:]
+  return triFlux
 
 
-def edgeToTri2(IE,fluxx):
+def edgeToTri2(tri,fluxx,flux_bc):
+  IE = tri.IE
+  BE = tri.BE
   nedges = np.shape(IE)[0]
   edge_quads = np.shape(fluxx)[1]
   nvars = np.shape(fluxx)[0]
-  Ntris = np.amax(IE[:,2:4]) + 1
+  Ntris = tri.nsimplex 
+
   triFlux = np.zeros((nvars,edge_quads,3,Ntris))
   triInd = IE[:,2]
   edgeInd = IE[:,4]
@@ -39,6 +47,9 @@ def edgeToTri2(IE,fluxx):
   edgeInd2 = IE[:,5]
   triFlux[:,:,edgeInd,triInd] = fluxx[:,:,:]
   triFlux[:,:,edgeInd2,triInd2] = -fluxx[:,::-1,:]
+
+  triFlux[:,:,BE[:,3],BE[:,2]] = flux_bc[:]
+  #print(triFlux[:,:,BE[:,3],BE[:,2]])
   return triFlux
 
 
@@ -58,9 +69,11 @@ def edgeToTri(IE,fluxx):
 
 
 #same for a scalar
-def edgeToTriScalar(IE,s):
+def edgeToTriScalar(tri,s):
+  IE = tri.IE
+  BE = tri.BE
   nedges = np.shape(IE)[0]
-  Ntris = np.amax(IE) + 1
+  Ntris = tri.nsimplex
   triFlux = np.zeros((3,Ntris))
   for i in range(0,nedges):
     triInd = IE[i,2]
@@ -69,6 +82,11 @@ def edgeToTriScalar(IE,s):
     edgeInd2 = IE[i,5]
     triFlux[edgeInd,triInd] = s[i]
     triFlux[edgeInd2,triInd2] = s[i]
+  nbedges = np.shape(BE)[0]
+  for i in range(0,nbedges):
+    triInd = BE[i,2]
+    edgeInd = BE[i,3]
+    triFlux[edgeInd,triInd] = s[i + nedges]
   return triFlux
 
 ## function to compute normals of a triangular mesh, given a tri class from delauny
@@ -101,13 +119,22 @@ def getJacobian(tri):
 ## gets the Jacobians of the edges
 def getEdgeJacobian(tri):
   nedges = np.shape(tri.IE)[0]
-  tri.Jedge = np.zeros(nedges)
+  nbedges = np.shape(tri.BE)[0]
+
+  tri.Jedge = np.zeros(nedges+nbedges)
   for i in range(0,nedges):
     x1 = tri.points[tri.IE[i,0]][0]
     x2 = tri.points[tri.IE[i,1]][0]
     y1 = tri.points[tri.IE[i,0]][1]
     y2 = tri.points[tri.IE[i,1]][1]
     tri.Jedge[i] = np.sqrt( (x2 - x1)**2 + (y1 - y2)**2 ) / 2.
+  for i in range(0,nbedges):
+    x1 = tri.points[tri.BE[i,0]][0]
+    x2 = tri.points[tri.BE[i,1]][0]
+    y1 = tri.points[tri.BE[i,0]][1]
+    y2 = tri.points[tri.BE[i,1]][1]
+    tri.Jedge[i + nedges] = np.sqrt( (x2 - x1)**2 + (y1 - y2)**2 ) / 2.
+
 #  return Jedge
 
 
@@ -138,7 +165,6 @@ def edgeHash(tri):
         niedge = niedge + 1
         H[n1,n2] = -1
         H[n2,n1] = -1
-  print(niedge)
   IE = IE[0:niedge,:]
   nbedge = 0
   BE = np.zeros((Nel*3,4),dtype='int32')
@@ -150,6 +176,7 @@ def edgeHash(tri):
         BE[nbedge,:] = np.array([int(n1),int(n2),int(elem),edge])
         nbedge += 1
   BE = BE[0:nbedge,:]
+  tri.BE = BE
 
   xedges = 0
   BEx = np.zeros((Nel*3,4),dtype='int32')
@@ -167,7 +194,7 @@ def edgeHash(tri):
 
   BEx = BEx[0:xedges,:]
   BEy = BEy[0:yedges,:]
-
+  print(np.shape(BEx),np.shape(BEy),np.shape(BE))
   ## Now get paired edges
   symedgesx = np.zeros((Nel*3,6),dtype='int32')
   counter = 0
@@ -212,10 +239,11 @@ def edgeHash(tri):
       j = j-1
     j = j+1
 
-  IE = np.append(IE,symedgesx,axis=0)
-  IE = np.append(IE,symedgesy,axis=0)
+  #IE = np.append(IE,symedgesx,axis=0)
+  #IE = np.append(IE,symedgesy,axis=0)
   tri.IE = np.zeros(np.shape(IE),dtype='int32')
   tri.IE[:] = IE[:]
+  print('Here',np.shape(tri.IE),np.shape(tri.BE))
 #  return IE#,BE,BEx,BEy,symedgesx,symedgesy,H
 
 
@@ -227,7 +255,7 @@ class createGrid:
     getJacobian(tri)
     edgeHash(tri) 
     getEdgeJacobian(tri)
-    tri.JedgeTri = edgeToTriScalar(tri.IE,tri.Jedge)
+    tri.JedgeTri = edgeToTriScalar(tri,tri.Jedge)
     self.p = p
     self.quad_order = quad_order
     ## ============= Quadrature ===========================

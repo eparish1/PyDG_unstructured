@@ -1,11 +1,10 @@
+import numpy as np
 import sys
 sys.path.append('../../src')
-import numpy as np
 from timeSchemes import *
 import os
-from dgHyperCore import *
 from dgCore import *
-from shallowWaterEquations import * 
+from eulerEquations import eulerEquations,vortexICS
 
 if __name__== "__main__":
   L1 = 10.
@@ -23,18 +22,15 @@ if __name__== "__main__":
   X[1] = y
   p = 3 #polynomial order
   quad_order = 6 #quadrature order
-  grid = createGrid(X,p,quad_order)
-  N = grid.tri.nsimplex
-  cells = np.array(range(0,N),dtype='int')
-  cells = np.random.choice(cells,int(N*0.1),replace=False)
-  hyperGrid = createHyperGrid(grid,cells)
+  grid = createGrid(X,p,quad_order,periodic=True)
+  
   ## Initialize equation set
-  eqns = shallowWaterEquations()
+  eqns = eulerEquations()
   tri = grid.tri
   ### Initialize variables
   nvars = eqns.nvars
   U = np.zeros((nvars,grid.order_glob,grid.tri.nsimplex))
-  U,xGlob = constructUIC_ell2Projection(grid,gaussianICS)
+  U,xGlob = constructUIC_ell2Projection(grid,vortexICS)
   
   t = 0
   et = 10.
@@ -42,7 +38,7 @@ if __name__== "__main__":
   gamma = 1.4
   
   iteration = 0
-  save_freq = 10
+  save_freq = 100
   t1 = time.time()
   if not os.path.exists('Solution'):
     os.makedirs('Solution')
@@ -53,10 +49,6 @@ if __name__== "__main__":
       string = 'Solution/npsol' + str(iteration)
       eqns.writeSol(string,U,grid)
   
-    test = computeRHSHyper(U[:,:,hyperGrid.stencilElements],hyperGrid.tri,eqns)[:,:,hyperGrid.sampleElementsIds]
-    test2 = computeRHS(U,grid.tri,eqns)[:,:,hyperGrid.sampleElements]
-    check = np.linalg.norm( test - test2)
-    print('Hyper norm = ' + str(check))
     iteration += 1
     U = advanceSolRK4(U,grid,eqns,dt)
     t += dt

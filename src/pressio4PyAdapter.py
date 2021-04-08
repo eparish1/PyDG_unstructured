@@ -9,10 +9,10 @@ class CreatePressioAdapter():
     self.yShape = (eqns.nvars,grid.order_glob,grid.tri.nsimplex)
 
   def velocity(self,y,t,f):
-    ytmp = np.reshape(y,self.yShape)
+    ytmp = np.reshape(y,self.yShape,order='F')
     ftmp = computeRHS(ytmp,self.grid.tri,self.eqns)
-    f[:] = np.einsum('ijk,njk->nik',self.grid.Minv,ftmp).flatten()
-    return f.flatten()
+    f[:] = np.einsum('ijk,njk->nik',self.grid.Minv,ftmp).flatten(order='F')
+    return f.flatten(order='F')
 
   def createVelocity(self):
     return np.zeros(self.N)
@@ -40,10 +40,10 @@ class CreatePressioHyperAdapter():
     self.yShape = (eqns.nvars,grid.order_glob,grid.tri.nsimplex)
 
   def velocity(self,y,t,f):
-    ytmp = np.reshape(y,self.yShape)
+    ytmp = np.reshape(y,self.yShape,order='F')
     ftmp = computeRHSHyper(ytmp,self.grid.tri,self.eqns)
-    f[:] = np.einsum('ijk,njk->nik',self.grid.Minv,ftmp).flatten()
-    return f.flatten()
+    f[:] = np.einsum('ijk,njk->nik',self.grid.Minv,ftmp).flatten(order='F')
+    return f.flatten(order='F')
 
   def createVelocity(self):
     return np.zeros(self.N)

@@ -7,6 +7,14 @@ except:
   canWriteToVtk = False 
 class eulerEquations:
   nvars = 4
+  def __init__(self,bc_type=None,bc_function=None):
+    self.bc_type = bc_type 
+    if (bc_type == "CUSTOM_BCS"):
+      self.getBoundaryStateFromInteriorState = bc_function
+    else:
+      self.getBoundaryStateFromInteriorState = None
+
+
   def writeSol(self,string,U,grid):
     if canWriteToVtk:
       p = (1.4 - 1.)*(U[3] - 0.5*U[1]**2/U[0] - 0.5*U[2]**2/U[0])

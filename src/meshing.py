@@ -48,11 +48,11 @@ def edgeToTri2(tri,fluxx,flux_bc):
   triFlux[:,:,edgeInd,triInd] = fluxx[:,:,:]
   triFlux[:,:,edgeInd2,triInd2] = -fluxx[:,::-1,:]
 
-  triFlux[:,:,BE[:,3],BE[:,2]] = flux_bc[:]
-  #print(triFlux[:,:,BE[:,3],BE[:,2]])
+  if not tri.periodic:
+    triFlux[:,:,BE[:,3],BE[:,2]] = flux_bc[:]
   return triFlux
 
-
+'''
 def edgeToTri(IE,fluxx):
   nedges = np.shape(IE)[0]
   edge_quads = np.shape(fluxx)[1]
@@ -66,7 +66,7 @@ def edgeToTri(IE,fluxx):
   triFlux[:,:,edgeInd,triInd] = fluxx[:,:,:]
   triFlux[:,:,edgeInd2,triInd2] = fluxx[:,::-1,:]
   return triFlux
-
+'''
 
 #same for a scalar
 def edgeToTriScalar(tri,s):
@@ -82,11 +82,12 @@ def edgeToTriScalar(tri,s):
     edgeInd2 = IE[i,5]
     triFlux[edgeInd,triInd] = s[i]
     triFlux[edgeInd2,triInd2] = s[i]
-  nbedges = np.shape(BE)[0]
-  for i in range(0,nbedges):
-    triInd = BE[i,2]
-    edgeInd = BE[i,3]
-    triFlux[edgeInd,triInd] = s[i + nedges]
+  if not tri.periodic:
+    nbedges = np.shape(BE)[0]
+    for i in range(0,nbedges):
+      triInd = BE[i,2]
+      edgeInd = BE[i,3]
+      triFlux[edgeInd,triInd] = s[i + nedges]
   return triFlux
 
 ## function to compute normals of a triangular mesh, given a tri class from delauny
@@ -119,7 +120,10 @@ def getJacobian(tri):
 ## gets the Jacobians of the edges
 def getEdgeJacobian(tri):
   nedges = np.shape(tri.IE)[0]
-  nbedges = np.shape(tri.BE)[0]
+  if not tri.periodic:
+    nbedges = np.shape(tri.BE)[0]
+  else:
+    nbedges = 0
 
   tri.Jedge = np.zeros(nedges+nbedges)
   for i in range(0,nedges):
@@ -128,20 +132,20 @@ def getEdgeJacobian(tri):
     y1 = tri.points[tri.IE[i,0]][1]
     y2 = tri.points[tri.IE[i,1]][1]
     tri.Jedge[i] = np.sqrt( (x2 - x1)**2 + (y1 - y2)**2 ) / 2.
-  for i in range(0,nbedges):
-    x1 = tri.points[tri.BE[i,0]][0]
-    x2 = tri.points[tri.BE[i,1]][0]
-    y1 = tri.points[tri.BE[i,0]][1]
-    y2 = tri.points[tri.BE[i,1]][1]
-    tri.Jedge[i + nedges] = np.sqrt( (x2 - x1)**2 + (y1 - y2)**2 ) / 2.
-
-#  return Jedge
-
+  if not tri.periodic:
+    for i in range(0,nbedges):
+      x1 = tri.points[tri.BE[i,0]][0]
+      x2 = tri.points[tri.BE[i,1]][0]
+      y1 = tri.points[tri.BE[i,0]][1]
+      y2 = tri.points[tri.BE[i,1]][1]
+      tri.Jedge[i + nedges] = np.sqrt( (x2 - x1)**2 + (y1 - y2)**2 ) / 2.
 
 
-## return IE array with form
+
+
+## return IE (interior edge) array with form
 ## IE = [vert1, vert2, el1, el2, el1_edge #, el2_edge #]
-def edgeHash(tri):
+def edgeHash(tri,periodic=False):
   Nel = np.shape(tri.vertices)[0]
   H = np.zeros((tri.npoints,tri.npoints))
   H2 = np.zeros((tri.npoints,tri.npoints))
@@ -194,64 +198,69 @@ def edgeHash(tri):
 
   BEx = BEx[0:xedges,:]
   BEy = BEy[0:yedges,:]
-  ## Now get paired edges
-  symedgesx = np.zeros((Nel*3,6),dtype='int32')
-  counter = 0
-  for i in range(0,xedges):
-    for j in range(0,xedges):
-      if ( abs( tri.points[BEx[i,0]][1] - tri.points[BEx[j,0]][1] ) < 1e-10 and \
-           abs( tri.points[BEx[i,1]][1] - tri.points[BEx[j,1]][1] ) < 1e-10 ) or\
-         ( abs( tri.points[BEx[i,1]][1] - tri.points[BEx[j,0]][1] ) < 1e-10 and \
-           abs( tri.points[BEx[i,0]][1] - tri.points[BEx[j,1]][1] ) < 1e-10 ):
-        if j != i:
-          symedgesx[counter,:] = np.array([BEx[i,0],BEx[i,1],BEx[i,2],BEx[j,2],BEx[i,3],BEx[j,3]])
-          counter += 1
-  symedgesx = symedgesx[0:counter,:]
 
+  if periodic:
+    ## Get paired edges and add to IE
+    # for periodic, we assme that x or y nodal locations match 
+    symedgesx = np.zeros((Nel*3,6),dtype='int32')
+    counter = 0
+    for i in range(0,xedges):
+      for j in range(0,xedges):
+        if ( abs( tri.points[BEx[i,0]][1] - tri.points[BEx[j,0]][1] ) < 1e-10 and \
+             abs( tri.points[BEx[i,1]][1] - tri.points[BEx[j,1]][1] ) < 1e-10 ) or\
+           ( abs( tri.points[BEx[i,1]][1] - tri.points[BEx[j,0]][1] ) < 1e-10 and \
+             abs( tri.points[BEx[i,0]][1] - tri.points[BEx[j,1]][1] ) < 1e-10 ):
+          if j != i:
+            symedgesx[counter,:] = np.array([BEx[i,0],BEx[i,1],BEx[i,2],BEx[j,2],BEx[i,3],BEx[j,3]])
+            counter += 1
+    symedgesx = symedgesx[0:counter,:]
+  
+  
+    symedgesy = np.zeros((Nel*3,6),dtype='int32')
+    counter = 0
+    for i in range(0,yedges):
+      for j in range(0,yedges):
+        if ( abs( tri.points[BEy[i,0]][0] - tri.points[BEy[j,0]][0] ) < 1e-10 and \
+             abs( tri.points[BEy[i,1]][0] - tri.points[BEy[j,1]][0] ) < 1e-10 ) or\
+           ( abs( tri.points[BEy[i,1]][0] - tri.points[BEy[j,0]][0] ) < 1e-10 and \
+             abs( tri.points[BEy[i,0]][0] - tri.points[BEy[j,1]][0] ) < 1e-10 ):
+          if j != i:
+            symedgesy[counter,:] = np.array([BEy[i,0],BEy[i,1],BEy[i,2],BEy[j,2],BEy[i,3],BEy[j,3]])
+            counter += 1
+    symedgesy = symedgesy[0:counter,:]
+  
+    ## now delete repeated edges
+    j = 0
+    for i in range(0,np.shape(symedgesx)[0]):
+      if (symedgesx[j,2] > symedgesx[j,3]):
+        symedgesx = np.delete(symedgesx,j,axis=0)
+        j = j-1
+      j = j+1
+  
+    ## now delete repeated edges in y
+    j = 0
+    for i in range(0,np.shape(symedgesy)[0]):
+      if (symedgesy[j,2] > symedgesy[j,3]):
+        symedgesy = np.delete(symedgesy,j,axis=0)
+        j = j-1
+      j = j+1
+  
+    IE = np.append(IE,symedgesx,axis=0)
+    IE = np.append(IE,symedgesy,axis=0)
+    tri.BE = None
 
-  symedgesy = np.zeros((Nel*3,6),dtype='int32')
-  counter = 0
-  for i in range(0,yedges):
-    for j in range(0,yedges):
-      if ( abs( tri.points[BEy[i,0]][0] - tri.points[BEy[j,0]][0] ) < 1e-10 and \
-           abs( tri.points[BEy[i,1]][0] - tri.points[BEy[j,1]][0] ) < 1e-10 ) or\
-         ( abs( tri.points[BEy[i,1]][0] - tri.points[BEy[j,0]][0] ) < 1e-10 and \
-           abs( tri.points[BEy[i,0]][0] - tri.points[BEy[j,1]][0] ) < 1e-10 ):
-        if j != i:
-          symedgesy[counter,:] = np.array([BEy[i,0],BEy[i,1],BEy[i,2],BEy[j,2],BEy[i,3],BEy[j,3]])
-          counter += 1
-  symedgesy = symedgesy[0:counter,:]
-
-  ## now delete repeated edges
-  j = 0
-  for i in range(0,np.shape(symedgesx)[0]):
-    if (symedgesx[j,2] > symedgesx[j,3]):
-      symedgesx = np.delete(symedgesx,j,axis=0)
-      j = j-1
-    j = j+1
-
-  ## now delete repeated edges in y
-  j = 0
-  for i in range(0,np.shape(symedgesy)[0]):
-    if (symedgesy[j,2] > symedgesy[j,3]):
-      symedgesy = np.delete(symedgesy,j,axis=0)
-      j = j-1
-    j = j+1
-
-  #IE = np.append(IE,symedgesx,axis=0)
-  #IE = np.append(IE,symedgesy,axis=0)
   tri.IE = np.zeros(np.shape(IE),dtype='int32')
   tri.IE[:] = IE[:]
-#  return IE#,BE,BEx,BEy,symedgesx,symedgesy,H
 
 
 class createGrid:
-  def __init__(self,X,p,quad_order):
+  def __init__(self,X,p,quad_order,periodic=False):
     tri = Delaunay(X.transpose())
+    tri.periodic=periodic
     computeNormals(tri)
     ntris = tri.nsimplex
     getJacobian(tri)
-    edgeHash(tri) 
+    edgeHash(tri,periodic) 
     getEdgeJacobian(tri)
     tri.JedgeTri = edgeToTriScalar(tri,tri.Jedge)
     self.p = p
@@ -290,10 +299,11 @@ class createGrid:
 
 
 class createHyperGrid:
-  def __init__(self,grid,eqns,sampleElements):
+  def __init__(self,grid,eqns,sampleElements,periodic=False):
     self.order_glob = grid.order_glob
 
     self.tri = copy.deepcopy(grid.tri)
+    self.tri.periodic = periodic
     nInteriorEdges = np.shape(grid.tri.IE)[0]
     self.tri.IE = np.zeros( (0,np.shape(grid.tri.IE)[1] ) ,dtype='int')
     stencilElements = copy.deepcopy(sampleElements)

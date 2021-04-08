@@ -30,4 +30,5 @@ jobs:
     - name: Regression tests
       run: |
         pip install pytest
+        pip install numpy
         pytest

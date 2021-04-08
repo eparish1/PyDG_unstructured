@@ -21,6 +21,7 @@ class MyLinSolver:
     lumat, piv, info = linalg.lapack.dgetrf(A, overwrite_a=True)
     x[:], info = linalg.lapack.dgetrs(lumat, piv, b, 0, 0)
 
+
 def boundaryConditions(grid,uInterior):
   uExterior = uInterior[:,:]*1.
   uExterior[1::] *= -1
@@ -28,9 +29,19 @@ def boundaryConditions(grid,uInterior):
 
 
 class RomStateObserver:
-  def __init__(self): pass
+  def __init__(self,Phi,grid,eqns):
+    self.Phi = Phi
+    self.grid = grid
+    self.eqns = eqns
+    if not os.path.exists('Solution'):
+      os.makedirs('Solution')
+
   def __call__(self, timeStep, time, state):
     print('time = ' + str(time))
+    string = 'Solution/npsol' + str(timeStep)
+    U = np.dot(self.Phi,state)
+    U = np.reshape(U,(self.eqns.nvars,self.grid.order_glob,self.grid.tri.nsimplex),order='F')
+    self.eqns.writeSol(string,U,self.grid)
 
 if __name__== "__main__":
   L1 = 10.
@@ -60,9 +71,10 @@ if __name__== "__main__":
   ## create adapter
   fomObj = CreatePressioHyperAdapter(hyperGrid,eqns,hyper=False)
   Phi = np.load('pod_basis.npz')['Phi']
-  Phi = np.reshape(Phi,(eqns.nvars,grid.order_glob,grid.tri.nsimplex,np.shape(Phi)[1]))
+  PhiFull = copy.deepcopy(Phi)
+  Phi = np.reshape(Phi,(eqns.nvars,grid.order_glob,grid.tri.nsimplex,np.shape(Phi)[1]),order='F')
   Phi = Phi[:,:,hyperGrid.stencilElements]
-  Phi = np.reshape(Phi,(eqns.nvars*grid.order_glob*np.size(hyperGrid.stencilElements),np.shape(Phi)[-1]))
+  Phi = np.reshape(Phi,(eqns.nvars*grid.order_glob*np.size(hyperGrid.stencilElements),np.shape(Phi)[-1]),order='F')
   Phi = np.reshape(Phi.flatten(order='F'),np.shape(Phi),order='F')
   
 
@@ -76,9 +88,8 @@ if __name__== "__main__":
   ### Initialize variables
   U = np.zeros((eqns.nvars,grid.order_glob,grid.tri.nsimplex))
   U,xGlob = constructUIC_ell2Projection(grid,gaussianICS)
-
   fomInitialState = copy.deepcopy(U[:,:,hyperGrid.stencilElements])
-  romState = np.dot(Phi.transpose(),fomInitialState.flatten())
+  romState = np.dot(PhiFull.transpose(),U.flatten(order='F'))
   problem = rom.lspg.unsteady.hyperreduced.ProblemEuler(fomObj, linearDecoder, romState, fomReferenceState,hyperGrid.sampleElementsIdsForPressio)  
   t = 0
   et = 10.
@@ -93,7 +104,7 @@ if __name__== "__main__":
   nonLinSolver.setStoppingCriterion(solvers.stop.whenCorrectionAbsoluteNormBelowTolerance)
 
   # create object to monitor the romState at every iteration
-  myObs = RomStateObserver()
+  myObs = RomStateObserver(PhiFull,grid,eqns)
   # solve problem
   rom.lspg.solveNSequentialMinimizations(problem, romState, 0., dt, nsteps, myObs,nonLinSolver)
 

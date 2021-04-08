@@ -68,7 +68,7 @@ if __name__== "__main__":
   U,xGlob = constructUIC_ell2Projection(grid,gaussianICS)
 
   fomInitialState = copy.deepcopy(U)
-  romState = np.dot(Phi.transpose(),fomInitialState.flatten())
+  romState = np.dot(Phi.transpose(),fomInitialState.flatten(order='F'))
   problem = rom.lspg.unsteady.default.ProblemEuler(fomObj, linearDecoder, romState, fomReferenceState)  
   t = 0
   et = 10.

@@ -2,7 +2,7 @@ import numpy as np
 from dgCore import *
 from dgHyperCore import *
 class CreatePressioAdapter():
-  def __init__(self,grid,eqns,hyper=False):
+  def __init__(self,grid,eqns):
     self.grid = grid
     self.eqns = eqns
     self.N = eqns.nvars*grid.order_glob*grid.tri.nsimplex
@@ -33,7 +33,7 @@ class CreatePressioAdapter():
 
 
 class CreatePressioHyperAdapter():
-  def __init__(self,grid,eqns,hyper=False):
+  def __init__(self,grid,eqns):
     self.grid = grid
     self.eqns = eqns
     self.N = eqns.nvars*grid.order_glob*grid.tri.Nelements

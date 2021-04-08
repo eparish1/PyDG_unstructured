@@ -4,6 +4,7 @@ import numpy as np
 from timeSchemes import *
 import os
 from dgCore import *
+from dgHyperCore import *
 from shallowWaterEquations import * 
 from pressio4PyAdapter import *
 # if run from within a build of pressio4py, need to append to python path
@@ -20,6 +21,7 @@ class MyLinSolver:
     lumat, piv, info = linalg.lapack.dgetrf(A, overwrite_a=True)
     x[:], info = linalg.lapack.dgetrs(lumat, piv, b, 0, 0)
 
+
 def boundaryConditions(grid,uInterior):
   uExterior = uInterior[:,:]*1.
   uExterior[1::] *= -1
@@ -27,11 +29,25 @@ def boundaryConditions(grid,uInterior):
 
 
 class RomStateObserver:
-  def __init__(self): pass
+  def __init__(self,Phi,grid,eqns):
+    self.Phi = Phi
+    self.grid = grid
+    self.eqns = eqns
+    if not os.path.exists('Solution'):
+      os.makedirs('Solution')
+
   def __call__(self, timeStep, time, state):
     print('time = ' + str(time))
+    string = 'Solution/npsol' + str(timeStep)
+    U = np.dot(self.Phi,state)
+    U = np.reshape(U,(self.eqns.nvars,self.grid.order_glob,self.grid.tri.nsimplex),order='F')
+    if (timeStep%10 == 0):
+      self.eqns.writeSol(string,U,self.grid)
 
 if __name__== "__main__":
+
+  ## Create grid
+  #==============
   L1 = 10.
   L2 = 10.
   Nelx = 2**5
@@ -48,28 +64,44 @@ if __name__== "__main__":
   p = 3 #polynomial order
   quad_order = 6 #quadrature order
   grid = createGrid(X,p,quad_order)
+  #=========
+
   ## Initialize equation set
   eqns = shallowWaterEquations("CUSTOM_BCS",boundaryConditions)
 
-  ## create adapter
-  fomObj = CreatePressioAdapter(grid,eqns,hyper=False)
-  Phi = np.load('pod_basis.npz')['Phi']
-  Phi = np.reshape(Phi.flatten(order='F'),np.shape(Phi),order='F')
+  ## create sample mesh (random selection)
+  N = grid.tri.nsimplex
+  cells = np.array(range(0,N),dtype='int')
+  cells = np.random.choice(cells,int(N*0.1),replace=False)
+  hyperGrid = createHyperGrid(grid,eqns,cells)
 
+
+  ## create adapter
+  fomObj = CreatePressioHyperAdapter(hyperGrid,eqns)
+  Phi = np.load('pod_basis.npz')['Phi']
+  PhiFull = copy.deepcopy(Phi)
+  #reshape Phi and grab portion local to sample mesh
+  Phi = np.reshape(Phi,(eqns.nvars,grid.order_glob,grid.tri.nsimplex,np.shape(Phi)[1]),order='F')
+  Phi = Phi[:,:,hyperGrid.stencilElements]
+  Phi = np.reshape(Phi,(eqns.nvars*grid.order_glob*np.size(hyperGrid.stencilElements),np.shape(Phi)[-1]),order='F')
+  Phi = np.reshape(Phi.flatten(order='F'),np.shape(Phi),order='F')
+  
+
+  ## create decoder and ref state
   romSize = np.shape(Phi)[1]
   linearDecoder = rom.Decoder(Phi)
-
   fomReferenceState = np.zeros(np.shape(Phi)[0])
   
-  tri = grid.tri
   ### Initialize variables
-  nvars = eqns.nvars
-  U = np.zeros((nvars,grid.order_glob,grid.tri.nsimplex))
+  # Make full FOM state for ICs
+  U = np.zeros((eqns.nvars,grid.order_glob,grid.tri.nsimplex))
   U,xGlob = constructUIC_ell2Projection(grid,gaussianICS)
 
-  fomInitialState = copy.deepcopy(U)
-  romState = np.dot(Phi.transpose(),fomInitialState.flatten(order='F'))
-  problem = rom.lspg.unsteady.default.ProblemEuler(fomObj, linearDecoder, romState, fomReferenceState)  
+  fomInitialState = copy.deepcopy(U[:,:,hyperGrid.stencilElements])
+  romState = np.dot(PhiFull.transpose(),U.flatten(order='F'))
+
+  # create hyperreduced problem
+  problem = rom.lspg.unsteady.hyperreduced.ProblemEuler(fomObj, linearDecoder, romState, fomReferenceState,hyperGrid.sampleElementsIdsForPressio)  
   t = 0
   et = 10.
   dt = 0.005
@@ -78,12 +110,13 @@ if __name__== "__main__":
   # create the Gauss-Newton solver
   nonLinSolver = solvers.createGaussNewton(problem, romState, MyLinSolver())
   # set tolerance and convergence criteria
-  nlsTol, nlsMaxIt = 1e-6, 5
+
+  nlsTol, nlsMaxIt = 1e-6, 15
   nonLinSolver.setMaxIterations(nlsMaxIt)
   nonLinSolver.setStoppingCriterion(solvers.stop.whenCorrectionAbsoluteNormBelowTolerance)
 
   # create object to monitor the romState at every iteration
-  myObs = RomStateObserver()
+  myObs = RomStateObserver(PhiFull,grid,eqns)
   # solve problem
   rom.lspg.solveNSequentialMinimizations(problem, romState, 0., dt, nsteps, myObs,nonLinSolver)
 

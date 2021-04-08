@@ -4,7 +4,6 @@ import numpy as np
 from timeSchemes import *
 import os
 from dgCore import *
-from dgHyperCore import *
 from shallowWaterEquations import * 
 from pressio4PyAdapter import *
 # if run from within a build of pressio4py, need to append to python path
@@ -20,7 +19,6 @@ class MyLinSolver:
   def solve(self, A,b,x):
     lumat, piv, info = linalg.lapack.dgetrf(A, overwrite_a=True)
     x[:], info = linalg.lapack.dgetrs(lumat, piv, b, 0, 0)
-
 
 def boundaryConditions(grid,uInterior):
   uExterior = uInterior[:,:]*1.
@@ -41,9 +39,13 @@ class RomStateObserver:
     string = 'Solution/npsol' + str(timeStep)
     U = np.dot(self.Phi,state)
     U = np.reshape(U,(self.eqns.nvars,self.grid.order_glob,self.grid.tri.nsimplex),order='F')
-    self.eqns.writeSol(string,U,self.grid)
+    if (timeStep%10 == 0):
+      self.eqns.writeSol(string,U,self.grid)
 
 if __name__== "__main__":
+
+  ## Create grid
+  #=============
   L1 = 10.
   L2 = 10.
   Nelx = 2**5
@@ -62,35 +64,27 @@ if __name__== "__main__":
   grid = createGrid(X,p,quad_order)
   ## Initialize equation set
   eqns = shallowWaterEquations("CUSTOM_BCS",boundaryConditions)
-
-  N = grid.tri.nsimplex
-  cells = np.array(range(0,N),dtype='int')
-  cells = np.random.choice(cells,int(N*0.1),replace=False)
-  hyperGrid = createHyperGrid(grid,eqns,cells)
+  #===============
 
   ## create adapter
-  fomObj = CreatePressioHyperAdapter(hyperGrid,eqns,hyper=False)
+  fomObj = CreatePressioAdapter(grid,eqns)
   Phi = np.load('pod_basis.npz')['Phi']
-  PhiFull = copy.deepcopy(Phi)
-  Phi = np.reshape(Phi,(eqns.nvars,grid.order_glob,grid.tri.nsimplex,np.shape(Phi)[1]),order='F')
-  Phi = Phi[:,:,hyperGrid.stencilElements]
-  Phi = np.reshape(Phi,(eqns.nvars*grid.order_glob*np.size(hyperGrid.stencilElements),np.shape(Phi)[-1]),order='F')
+  #reformat Phi to work with Pressio
   Phi = np.reshape(Phi.flatten(order='F'),np.shape(Phi),order='F')
-  
 
-
+  ## initialize variables
   romSize = np.shape(Phi)[1]
   linearDecoder = rom.Decoder(Phi)
-
   fomReferenceState = np.zeros(np.shape(Phi)[0])
   
-  tri = grid.tri
   ### Initialize variables
-  U = np.zeros((eqns.nvars,grid.order_glob,grid.tri.nsimplex))
+  nvars = eqns.nvars
+  U = np.zeros((nvars,grid.order_glob,grid.tri.nsimplex))
   U,xGlob = constructUIC_ell2Projection(grid,gaussianICS)
-  fomInitialState = copy.deepcopy(U[:,:,hyperGrid.stencilElements])
-  romState = np.dot(PhiFull.transpose(),U.flatten(order='F'))
-  problem = rom.lspg.unsteady.hyperreduced.ProblemEuler(fomObj, linearDecoder, romState, fomReferenceState,hyperGrid.sampleElementsIdsForPressio)  
+
+  fomInitialState = copy.deepcopy(U)
+  romState = np.dot(Phi.transpose(),fomInitialState.flatten(order='F'))
+  problem = rom.lspg.unsteady.default.ProblemEuler(fomObj, linearDecoder, romState, fomReferenceState)  
   t = 0
   et = 10.
   dt = 0.005
@@ -104,7 +98,8 @@ if __name__== "__main__":
   nonLinSolver.setStoppingCriterion(solvers.stop.whenCorrectionAbsoluteNormBelowTolerance)
 
   # create object to monitor the romState at every iteration
-  myObs = RomStateObserver(PhiFull,grid,eqns)
+  myObs = RomStateObserver(Phi,grid,eqns)
+
   # solve problem
   rom.lspg.solveNSequentialMinimizations(problem, romState, 0., dt, nsteps, myObs,nonLinSolver)
 

@@ -6,8 +6,6 @@ from myQuadRules import *
 from basisFunctions import *
 import time
 
-
-
 def computeFlux(tri,u_edges,eqns):
   u1 = u_edges[:,:,tri.IE[:,4],tri.IE[:,2]]
   u2 = u_edges[:,::-1,tri.IE[:,5],tri.IE[:,3]]

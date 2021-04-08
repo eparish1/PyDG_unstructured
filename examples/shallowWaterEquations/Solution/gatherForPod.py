@@ -5,7 +5,7 @@ snapshots = np.zeros((N,0))
 for i in range(0,1000,5):
   print('Loading snapshot ' + str(i))
   data = np.load('npsol' + str(i) + '.npz')
-  snapshots = np.append(snapshots,data['U'].flatten()[:,None],axis=1)
+  snapshots = np.append(snapshots,data['U'].flatten(order='F')[:,None],axis=1)
 
 
 U,s,_ = np.linalg.svd(snapshots,full_matrices=False)

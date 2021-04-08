@@ -1,4 +1,5 @@
 import sys
+sys.path.append('src')
 sys.path.append('../../src')
 import numpy as np
 from timeSchemes import *
@@ -7,7 +8,7 @@ from dgHyperCore import *
 from dgCore import *
 from shallowWaterEquations import * 
 # need to update for ordering
-if __name__== "__main__":
+def test_main():
   ## Create grid
   L1 = 10.
   L2 = 10.
@@ -46,9 +47,5 @@ if __name__== "__main__":
   
   rhs1 = computeRHSHyper(U[:,:,hyperGrid.stencilElements],hyperGrid.tri,eqns)
   rhs2 = computeRHS(U,grid.tri,eqns)[:,:,hyperGrid.sampleElements]
-  check = np.allclose(rhs1,rhs2)
-  if check:
-    print('Hyperreduction check passed')
-  else:
-    print("Oh dear...something failed. I shouldn't have been watching golf while I wrote this")
+  assert(np.allclose(rhs1,rhs2))
 

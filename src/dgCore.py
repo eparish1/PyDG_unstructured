@@ -1,6 +1,5 @@
 import numpy as np
 from scipy.spatial import Delaunay
-from evtk.hl import pointsToVTK 
 from meshing import *
 from myQuadRules import *
 from basisFunctions import *

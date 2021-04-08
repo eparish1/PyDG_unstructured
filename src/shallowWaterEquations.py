@@ -7,6 +7,13 @@ except:
   canWriteToVtk = False
 class shallowWaterEquations:
   nvars = 3
+  def __init__(self,bc_type,bc_function=None):
+    self.bc_type = bc_type 
+    if (bc_type == "CUSTOM_BCS"):
+      self.getBoundaryStateFromInteriorState = bc_function
+    else:
+      self.getBoundaryStateFromInteriorState = None
+
   def writeSol(self,string,U,grid):
     if canWriteToVtk:
       triangle_faces_to_VTK(string,x=grid.triQ.points[:,0],y=grid.triQ.points[:,1],z=grid.triQ.points[:,0]*0,faces = grid.triQ.vertices,point_data=None,\

@@ -15,8 +15,9 @@ def computeFlux(tri,u_edges,eqns):
   flux = eqns.inviscidFlux(u1,u2,normals)
 
   uBC = u_edges[:,:,tri.BE[:,3],tri.BE[:,2] ]
-  uBC2 = uBC[:,:]*1.
-  uBC2[1::] *= -1
+  uBC2 = eqns.getBoundaryStateFromInteriorState(tri,uBC)
+  #uBC2 = uBC[:,:]*1.
+  #uBC2[1::] *= -1
   normalsBC = tri.normals[:,tri.BE[:,3],tri.BE[:,2]]
   flux_bc = eqns.inviscidFlux(uBC,uBC2,normalsBC)
   return flux,flux_bc

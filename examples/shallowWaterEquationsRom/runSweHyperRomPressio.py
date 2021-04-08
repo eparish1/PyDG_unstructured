@@ -4,6 +4,7 @@ import numpy as np
 from timeSchemes import *
 import os
 from dgCore import *
+from dgHyperCore import *
 from shallowWaterEquations import * 
 from pressio4PyAdapter import *
 # if run from within a build of pressio4py, need to append to python path
@@ -51,10 +52,20 @@ if __name__== "__main__":
   ## Initialize equation set
   eqns = shallowWaterEquations("CUSTOM_BCS",boundaryConditions)
 
+  N = grid.tri.nsimplex
+  cells = np.array(range(0,N),dtype='int')
+  cells = np.random.choice(cells,int(N*0.1),replace=False)
+  hyperGrid = createHyperGrid(grid,eqns,cells)
+
   ## create adapter
-  fomObj = CreatePressioAdapter(grid,eqns,hyper=False)
+  fomObj = CreatePressioHyperAdapter(hyperGrid,eqns,hyper=False)
   Phi = np.load('pod_basis.npz')['Phi']
+  Phi = np.reshape(Phi,(eqns.nvars,grid.order_glob,grid.tri.nsimplex,np.shape(Phi)[1]))
+  Phi = Phi[:,:,hyperGrid.stencilElements]
+  Phi = np.reshape(Phi,(eqns.nvars*grid.order_glob*np.size(hyperGrid.stencilElements),np.shape(Phi)[-1]))
   Phi = np.reshape(Phi.flatten(order='F'),np.shape(Phi),order='F')
+  
+
 
   romSize = np.shape(Phi)[1]
   linearDecoder = rom.Decoder(Phi)
@@ -63,13 +74,12 @@ if __name__== "__main__":
   
   tri = grid.tri
   ### Initialize variables
-  nvars = eqns.nvars
-  U = np.zeros((nvars,grid.order_glob,grid.tri.nsimplex))
+  U = np.zeros((eqns.nvars,grid.order_glob,grid.tri.nsimplex))
   U,xGlob = constructUIC_ell2Projection(grid,gaussianICS)
 
-  fomInitialState = copy.deepcopy(U)
+  fomInitialState = copy.deepcopy(U[:,:,hyperGrid.stencilElements])
   romState = np.dot(Phi.transpose(),fomInitialState.flatten())
-  problem = rom.lspg.unsteady.default.ProblemEuler(fomObj, linearDecoder, romState, fomReferenceState)  
+  problem = rom.lspg.unsteady.hyperreduced.ProblemEuler(fomObj, linearDecoder, romState, fomReferenceState,hyperGrid.sampleElementsIdsForPressio)  
   t = 0
   et = 10.
   dt = 0.005

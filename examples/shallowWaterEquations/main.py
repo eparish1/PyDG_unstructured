@@ -6,6 +6,29 @@ import os
 from dgCore import *
 from shallowWaterEquations import * 
 
+
+def boundaryConditions(grid,uInterior):
+  uExterior = uInterior[:,:]*1.
+  uExterior[1::] *= -1
+  '''
+  vert1 = tri.BE[:,0]
+  vert2 = tri.BE[:,1]
+  x1 = tri.points[vert1]
+  x2 = tri.points[vert2]
+
+  xL = np.logical_and(x1[:,0]==-5,x2[:,0] == -5)
+  xR = np.logical_and(x1[:,0]==5,x2[:,0] == 5)
+  xD = np.logical_and(x1[:,1]==-5,x2[:,1] == -5)
+  xU = np.logical_and(x1[:,1]==5,x2[:,1] == 5)
+
+  uExterior = np.zeros(np.shape(uInterior))
+  uExterior[:,:,xL] = 1.
+  uExterior[:,:,xR] = 2.
+  uExterior[:,:,xU] = 3.
+  uExterior[:,:,xD] = 4.
+  '''
+  return uExterior
+
 if __name__== "__main__":
   L1 = 10.
   L2 = 10.
@@ -25,7 +48,7 @@ if __name__== "__main__":
   grid = createGrid(X,p,quad_order)
   
   ## Initialize equation set
-  eqns = shallowWaterEquations()
+  eqns = shallowWaterEquations("CUSTOM_BCS",boundaryConditions)
   tri = grid.tri
   ### Initialize variables
   nvars = eqns.nvars

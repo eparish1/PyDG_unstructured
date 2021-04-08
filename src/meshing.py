@@ -194,7 +194,6 @@ def edgeHash(tri):
 
   BEx = BEx[0:xedges,:]
   BEy = BEy[0:yedges,:]
-  print(np.shape(BEx),np.shape(BEy),np.shape(BE))
   ## Now get paired edges
   symedgesx = np.zeros((Nel*3,6),dtype='int32')
   counter = 0
@@ -243,7 +242,6 @@ def edgeHash(tri):
   #IE = np.append(IE,symedgesy,axis=0)
   tri.IE = np.zeros(np.shape(IE),dtype='int32')
   tri.IE[:] = IE[:]
-  print('Here',np.shape(tri.IE),np.shape(tri.BE))
 #  return IE#,BE,BEx,BEy,symedgesx,symedgesy,H
 
 
@@ -288,15 +286,16 @@ class createGrid:
     ytmp = XQ[1].flatten()
     XQ = np.array([xtmp,ytmp])
     self.triQ = Delaunay(XQ.transpose())
-
+    self.tri.Nelements = tri.nsimplex
 
 
 class createHyperGrid:
-  def __init__(self,grid,sampleElements):
+  def __init__(self,grid,eqns,sampleElements):
+    self.order_glob = grid.order_glob
+
     self.tri = copy.deepcopy(grid.tri)
     nInteriorEdges = np.shape(grid.tri.IE)[0]
     self.tri.IE = np.zeros( (0,np.shape(grid.tri.IE)[1] ) ,dtype='int')
-    #self.tri.Jedge = np.zeros(0)
     stencilElements = copy.deepcopy(sampleElements)
     for i in range(0,nInteriorEdges):
       triInd = grid.tri.IE[i,2]
@@ -310,7 +309,19 @@ class createHyperGrid:
         stencilElements = np.append(stencilElements,triInd)
         stencilElements = np.append(stencilElements,triInd2)
         stencilElements = np.unique(stencilElements)
-    ## tri IE has coordiantes global coordinates, not local coordinates
+
+    nExteriorEdges = np.shape(grid.tri.BE)[0]
+    self.tri.BE = np.zeros( (0,np.shape(grid.tri.BE)[1] ) ,dtype='int')
+    for i in range(0,nExteriorEdges):
+      triInd = grid.tri.BE[i,2]
+      edgeInd = grid.tri.BE[i,3]
+      # check if edge touches a sample cell
+      if (triInd in sampleElements):
+        #if so, add edge to sample edge mesh, and add both touching cells to stencil mmesh
+        self.tri.BE = np.append(self.tri.BE,grid.tri.BE[i,:][None,:],axis=0)
+        stencilElements = np.append(stencilElements,triInd)
+        stencilElements = np.unique(stencilElements)
+    ## tri IE and tri BE have global coordinates, not local coordinates
     ## now that the stencil mesh is built, we can convert to local coordinates
     ## such that indices run  from 0 to size(sampleElements)
     for i in range(0,np.shape(self.tri.IE)[0]):
@@ -320,21 +331,34 @@ class createHyperGrid:
       triGlobInd2 = self.tri.IE[i,3]
       triLocInd2 = np.where(stencilElements == triGlobInd2)[0][0]
       self.tri.IE[i,3] = triLocInd2
+    for i in range(0,np.shape(self.tri.BE)[0]):
+      triGlobInd = self.tri.BE[i,2]
+      triLocInd = np.where(stencilElements == triGlobInd)[0][0]
+      self.tri.BE[i,2] = triLocInd
 
     self.tri.nsimplex = int( np.size(stencilElements) )
-    self.tri.JedgeTri = grid.tri.JedgeTri[:,stencilElements]
+    self.tri.JedgeTri = grid.tri.JedgeTri[:,sampleElements]
     self.stencilElements = stencilElements 
-    self.tri.Jinv = grid.tri.Jinv[:,:,stencilElements]
-    self.tri.Jdet = grid.tri.Jdet[stencilElements]
-
+    self.tri.Jinv = grid.tri.Jinv[:,:,sampleElements]
+    self.tri.Jdet = grid.tri.Jdet[sampleElements]
+    self.Minv = grid.Minv[:,:,sampleElements]
     ## Loop over all sample cells to determine where they are in the stencil mesh
     sampleElementsIds = np.zeros(0,dtype='int') 
+    sampleElementsIdsForPressio = np.zeros(0,dtype='int') 
+    dofsPerElement = eqns.nvars*grid.order_glob
     for i in range(0,np.size(sampleElements)):
       smGid = sampleElements[i]
       if (smGid in stencilElements):
         smLid = np.where(stencilElements == smGid)[0][0]
         sampleElementsIds = np.append(sampleElementsIds,smLid)
+        localIds = range(smLid*dofsPerElement,(smLid+1)*dofsPerElement)
+        sampleElementsIdsForPressio = np.append(sampleElementsIdsForPressio,localIds)
+
+
+    self.tri.sampleElementsIds = sampleElementsIds
     self.sampleElementsIds = sampleElementsIds
+    self.sampleElementsIdsForPressio = sampleElementsIdsForPressio
+
     self.sampleElements = sampleElements
     self.tri.normals = grid.tri.normals[:,:,stencilElements]
-  
+    self.tri.Nelements = np.size(sampleElements) 

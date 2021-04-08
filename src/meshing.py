@@ -299,11 +299,11 @@ class createGrid:
 
 
 class createHyperGrid:
-  def __init__(self,grid,eqns,sampleElements,periodic=False):
+  def __init__(self,grid,eqns,sampleElements):
     self.order_glob = grid.order_glob
 
     self.tri = copy.deepcopy(grid.tri)
-    self.tri.periodic = periodic
+    self.tri.periodic = grid.tri.periodic
     nInteriorEdges = np.shape(grid.tri.IE)[0]
     self.tri.IE = np.zeros( (0,np.shape(grid.tri.IE)[1] ) ,dtype='int')
     stencilElements = copy.deepcopy(sampleElements)
@@ -320,17 +320,22 @@ class createHyperGrid:
         stencilElements = np.append(stencilElements,triInd2)
         stencilElements = np.unique(stencilElements)
 
-    nExteriorEdges = np.shape(grid.tri.BE)[0]
-    self.tri.BE = np.zeros( (0,np.shape(grid.tri.BE)[1] ) ,dtype='int')
-    for i in range(0,nExteriorEdges):
-      triInd = grid.tri.BE[i,2]
-      edgeInd = grid.tri.BE[i,3]
-      # check if edge touches a sample cell
-      if (triInd in sampleElements):
-        #if so, add edge to sample edge mesh, and add both touching cells to stencil mmesh
-        self.tri.BE = np.append(self.tri.BE,grid.tri.BE[i,:][None,:],axis=0)
-        stencilElements = np.append(stencilElements,triInd)
-        stencilElements = np.unique(stencilElements)
+    
+    if not self.tri.periodic:    
+      nExteriorEdges = np.shape(grid.tri.BE)[0]
+      self.tri.BE = np.zeros( (0,np.shape(grid.tri.BE)[1] ) ,dtype='int')
+      for i in range(0,nExteriorEdges):
+        triInd = grid.tri.BE[i,2]
+        edgeInd = grid.tri.BE[i,3]
+        # check if edge touches a sample cell
+        if (triInd in sampleElements):
+          #if so, add edge to sample edge mesh, and add both touching cells to stencil mmesh
+          self.tri.BE = np.append(self.tri.BE,grid.tri.BE[i,:][None,:],axis=0)
+          stencilElements = np.append(stencilElements,triInd)
+          stencilElements = np.unique(stencilElements)
+    else:
+      nExteriorEdges = 0
+      self.tri.BE = None
     ## tri IE and tri BE have global coordinates, not local coordinates
     ## now that the stencil mesh is built, we can convert to local coordinates
     ## such that indices run  from 0 to size(sampleElements)
@@ -341,10 +346,12 @@ class createHyperGrid:
       triGlobInd2 = self.tri.IE[i,3]
       triLocInd2 = np.where(stencilElements == triGlobInd2)[0][0]
       self.tri.IE[i,3] = triLocInd2
-    for i in range(0,np.shape(self.tri.BE)[0]):
-      triGlobInd = self.tri.BE[i,2]
-      triLocInd = np.where(stencilElements == triGlobInd)[0][0]
-      self.tri.BE[i,2] = triLocInd
+
+    if not self.tri.periodic:    
+      for i in range(0,np.shape(self.tri.BE)[0]):
+        triGlobInd = self.tri.BE[i,2]
+        triLocInd = np.where(stencilElements == triGlobInd)[0][0]
+        self.tri.BE[i,2] = triLocInd
 
     self.tri.nsimplex = int( np.size(stencilElements) )
     self.tri.JedgeTri = grid.tri.JedgeTri[:,sampleElements]

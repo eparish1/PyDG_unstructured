@@ -7,7 +7,7 @@ except:
   canWriteToVtk = False
 class shallowWaterEquations:
   nvars = 3
-  def __init__(self,bc_type,bc_function=None):
+  def __init__(self,bc_type=None,bc_function=None):
     self.bc_type = bc_type 
     if (bc_type == "CUSTOM_BCS"):
       self.getBoundaryStateFromInteriorState = bc_function

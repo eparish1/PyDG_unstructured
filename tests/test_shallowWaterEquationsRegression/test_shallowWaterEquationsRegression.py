@@ -54,4 +54,3 @@ def test_main():
 
   data = np.load('tests/test_shallowWaterEquationsRegression/sol.gold.npz')
   assert np.allclose(U,data['U'])
-

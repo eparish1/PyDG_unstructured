@@ -86,6 +86,9 @@ def triQuadPoints(p,tri):
 def integrateEdge(u_edge,tri):
   return  tri.JedgeTri[None,:,:]*np.einsum('j,ijkl->ikl',tri.sweights,u_edge)
 
+def integrateEdgeElem(u_edge,tri,triInd):
+  return  tri.JedgeTri[None,:,triInd]*np.einsum('j,ijkl->ikl',tri.sweights,u_edge)
+
 def integrateTriStupid(UQ,tri):
   nvars = np.shape(UQ)[0]
   quadpoints = np.shape(UQ)[1]

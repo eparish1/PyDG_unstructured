@@ -31,6 +31,64 @@ def edgeToTri2BC(BE,flux_bc,triFlux):
   triFlux[:,:,edgeInd,triInd] = flux_bc[:,:,:]
   return triFlux
 
+def edgeToTriForJac(tri,fluxL,fluxR,flux_bcL,flux_bcR):
+  IE = tri.IE
+  BE = tri.BE
+  nedges = np.shape(IE)[0]
+  edge_quads = np.shape(fluxL)[2]
+  nvars = np.shape(fluxL)[0]
+  Ntris = tri.nsimplex 
+
+  triFlux = np.zeros((nvars,nvars,edge_quads,3,Ntris,3,Ntris))
+
+  triInd = IE[:,2]
+  edgeInd = IE[:,4]
+  triInd2 = IE[:,3]
+  edgeInd2 = IE[:,5]
+  triFlux[:,:,:,edgeInd,triInd,edgeInd,triInd] = fluxL[:]
+  triFlux[:,:,:,edgeInd,triInd,edgeInd2,triInd2] = fluxR[:,:]
+
+  triFlux[:,:,:,edgeInd2,triInd2,edgeInd,triInd] = -fluxL[:,:,::-1]
+  triFlux[:,:,:,edgeInd2,triInd2,edgeInd2,triInd2] = -fluxR[:,:,::-1]
+
+  if not tri.periodic:
+    triFlux[:,:,:,BE[:,3],BE[:,2],BE[:,3],BE[:,2]] = flux_bcL[:]
+  return triFlux
+
+def edgeToTriInterior(tri,fluxx,flux_bc):
+  IE = tri.IE
+  BE = tri.BE
+  nedges = np.shape(IE)[0]
+  edge_quads = np.shape(fluxx)[1]
+  nvars = np.shape(fluxx)[0]
+  Ntris = tri.nsimplex 
+
+  triFlux = np.zeros((nvars,edge_quads,3,Ntris))
+  triInd = IE[:,2]
+  edgeInd = IE[:,4]
+  triInd2 = IE[:,3]
+  edgeInd2 = IE[:,5]
+  triFlux[:,:,edgeInd,triInd] = fluxx[:,:,:]
+#  if not tri.periodic:
+#    triFlux[:,:,BE[:,3],BE[:,2]] = flux_bc[:]
+  return triFlux
+
+def edgeToTriExterior(tri,fluxx,flux_bc):
+  IE = tri.IE
+  BE = tri.BE
+  nedges = np.shape(IE)[0]
+  edge_quads = np.shape(fluxx)[1]
+  nvars = np.shape(fluxx)[0]
+  Ntris = tri.nsimplex 
+
+  triFlux = np.zeros((nvars,edge_quads,3,Ntris))
+  triInd = IE[:,2]
+  edgeInd = IE[:,4]
+  triInd2 = IE[:,3]
+  edgeInd2 = IE[:,5]
+  triFlux[:,:,edgeInd2,triInd2] = -fluxx[:,::-1,:]
+  return triFlux
+
 
 def edgeToTri2(tri,fluxx,flux_bc):
   IE = tri.IE

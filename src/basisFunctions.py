@@ -24,12 +24,25 @@ def getZetaLagrange(p,tri):
 def reconstructEdges(a,ell_edges):
   return np.einsum('pie,npk->niek',ell_edges,a)
 
+
+def reconstructStateGradientAtEdges(a,tri):
+  U_zeta = np.einsum('pie,npk->niek',tri.ell_edges_zeta,a)
+  U_eta =  np.einsum('pie,npk->niek',tri.ell_edges_eta,a)
+  Ux_edge =  U_zeta*tri.Jinv[None,None,None,0,0] + U_eta*tri.Jinv[None,None,None,1,0]
+  Uy_edge =  U_zeta*tri.Jinv[None,None,None,0,1] + U_eta*tri.Jinv[None,None,None,1,1]
+  return Ux_edge , Uy_edge
+
 ## function to go from the basis coefficients
 ## a_j to the quad points in ell
 def reconstructU(a,ell):
   return np.einsum('pi,npk->nik',ell,a)
 
-
+def reconstructStateGradient(a,tri,ellzeta,elleta):
+  U_zeta = np.einsum('pi,npk->nik',ellzeta,a)
+  U_eta = np.einsum('pi,npk->nik',elleta,a)
+  Ux =  U_zeta*tri.Jinv[None,None,0,0] + U_eta*tri.Jinv[None,None,1,0]
+  Uy =  U_zeta*tri.Jinv[None,None,0,1] + U_eta*tri.Jinv[None,None,1,1]
+  return Ux,Uy
 
 def lagrangeBasis(p,zeta):
   points = int( (p+1)*(p+2)/2 )

@@ -7,19 +7,21 @@ except:
   canWriteToVtk = False
 class shallowWaterEquations:
   nvars = 3
-  def __init__(self,bc_type=None,bc_function=None):
+  def __init__(self,bc_type=None,bc_function=None,source=None,params=None):
+    self.computeSource = source
+    self.params = params
     self.bc_type = bc_type 
     if (bc_type == "CUSTOM_BCS"):
       self.getBoundaryStateFromInteriorState = bc_function
     else:
       self.getBoundaryStateFromInteriorState = None
 
-  def writeSol(self,string,U,grid):
-    if canWriteToVtk:
+  def writeSol(self,string,U,grid,writeToVtk=True):
+    if canWriteToVtk and writeToVtk:
       triangle_faces_to_VTK(string,x=grid.triQ.points[:,0],y=grid.triQ.points[:,1],z=grid.triQ.points[:,0]*0,faces = grid.triQ.vertices,point_data=None,\
                cell_data={'h':np.mean(U[0].flatten()[grid.triQ.vertices[:,:]],axis=1),'hU':np.mean(U[1].flatten()[grid.triQ.vertices[:,:]],axis=1),\
                'hV':np.mean(U[2].flatten()[grid.triQ.vertices[:,:]],axis=1)})
-    np.savez(string,x=grid.triQ.points[:,0],y=grid.triQ.points[:,1],U=U)
+    np.savez(string,U=U)
 
   def flux(self,u):
     fx = np.zeros(np.shape(u))

@@ -1,3 +1,4 @@
+from pylab import *
 import numpy as np
 try:
   from postProcessCore import *
@@ -7,7 +8,9 @@ except:
   canWriteToVtk = False 
 class eulerEquations:
   nvars = 4
-  def __init__(self,bc_type=None,bc_function=None):
+  def __init__(self,bc_type=None,bc_function=None,source=None,params=None):
+    self.computeSource = source
+    self.params = params
     self.bc_type = bc_type 
     if (bc_type == "CUSTOM_BCS"):
       self.getBoundaryStateFromInteriorState = bc_function
@@ -180,6 +183,80 @@ def vortexICS(x,y,t):
   u = uinf - f2*(y - y0 - vinf*t)
   v = vinf + f2*(x - x0 - uinf*t)
   p = pinf*f1**(gamma/(gamma - 1.))
+  q = np.zeros((4,nx,ny))
+  q[0] = rho
+  q[1] = rho*u
+  q[2] = rho*v
+  q[3] = p/(gamma - 1.) + 0.5*rho*(u**2 + v**2)
+  return q
+
+
+
+###Premade initial conditions for the euler equations
+def KelvinHelmholtzICS(x,y,t):
+  print(np.shape(y))
+  nx,ny = np.shape(x)
+  gamma = 1.4
+  rho = np.zeros((nx,ny))
+  u = np.zeros((nx,ny))
+  v = np.zeros((nx,ny))
+  p = np.zeros((nx,ny))
+
+  freq = 3.
+  mag = 0.01
+  for i in range(0,nx):
+    for j in range(0,ny):
+      xL = x[i,j]
+      yL = y[i,j]
+      pert = mag*np.cos(2.*np.pi*freq*xL)
+      if (yL > 0.):
+        rho[i,j] = 2.
+        u[i,j] = 0.5 + pert
+        v[i,j] = - pert
+        p[i,j] = 2.5
+
+      else:
+        rho[i,j] = 1.
+        u[i,j] = -0.5 - pert
+        v[i,j] = + pert
+        p[i,j] = 2.5
+
+  q = np.zeros((4,nx,ny))
+  q[0] = rho
+  q[1] = rho*u
+  q[2] = rho*v
+  q[3] = p/(gamma - 1.) + 0.5*rho*(u**2 + v**2)
+  return q
+
+
+
+def RayleighTaylorICS(x,y,t):
+  nx,ny = np.shape(x)
+  gamma = 1.4
+  rho = np.zeros((nx,ny))
+  u = np.zeros((nx,ny))
+  v = np.zeros((nx,ny))
+  p = np.zeros((nx,ny))
+
+  freq = 1.
+  #pert = 5.*np.cos(2.*np.pi/10*freq*xVec)
+  for i in range(0,nx):
+    for j in range(0,ny):
+      xL = x[i,j]
+      yL = y[i,j]
+      pert = 0.5*np.cos(2.*np.pi/10*freq*xL)
+      if (yL > pert):
+        rho[i,j] = 2.
+        u[i,j] = 0.
+        v[i,j] = 0.
+        p[i,j] = 2.5
+
+      else:
+        rho[i,j] = 1.
+        u[i,j] = 0.
+        v[i,j] = 0.
+        p[i,j] = 2.5
+
   q = np.zeros((4,nx,ny))
   q[0] = rho
   q[1] = rho*u

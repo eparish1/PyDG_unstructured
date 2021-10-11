@@ -190,6 +190,41 @@ def vortexICS(x,y,t):
   q[3] = p/(gamma - 1.) + 0.5*rho*(u**2 + v**2)
   return q
 
+###Premade initial conditions for the euler equations
+def vortexICSDimensional(x,y,t):
+  R = 287.050883162528
+  Tinf = 300.
+  gamma = 1.4
+  cinf = np.sqrt(gamma*R*Tinf)
+  nx,ny = np.shape(x)
+  Minf = 0.5
+  #hw conditions
+  uinf,vinf =Minf*cinf/np.sqrt(2.),Minf*cinf/np.sqrt(2.)
+  rc = 1.
+  x0,y0 = 0.,0.
+  rhoinf = 1.225
+  eps = 0.3
+  t = 0.
+  #derived quantities
+  Vmag = np.sqrt(uinf**2 + vinf**2)
+  pinf = cinf**2*rhoinf/gamma
+  f0x = x - x0 - uinf*t
+  f0y = y - y0 - vinf*t
+  r = np.sqrt(f0x**2 + f0y**2)
+  f0 = 1. - r**2/rc**2
+  f1 = 1. - eps**2*(gamma - 1.)*Minf**2*np.exp(f0)/(8.*np.pi**2)
+  f2 = eps*Vmag/(2.*np.pi*rc)*np.exp(f0/2.)
+  rho = rhoinf*f1**(1./(gamma - 1.))
+  u = uinf - f2*(y - y0 - vinf*t)
+  v = vinf + f2*(x - x0 - uinf*t)
+  p = pinf*f1**(gamma/(gamma - 1.))
+  q = np.zeros((4,nx,ny))
+  q[0] = rho
+  q[1] = rho*u
+  q[2] = rho*v
+  q[3] = p/(gamma - 1.) + 0.5*rho*(u**2 + v**2)
+  return q
+
 
 
 ###Premade initial conditions for the euler equations

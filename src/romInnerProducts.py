@@ -137,9 +137,12 @@ class createEntropyInnerProductSpace:
     A0[3,2] = A0[2,3]
     A0[3,3] = Uref[0]*H**2 - asqr*p/(gamma - 1.)
     self.A0 = A0
+    self.A0sqrt = np.linalg.cholesky(self.A0).transpose()
+    self.A0sqrtInv = np.linalg.inv(self.A0sqrt)
+    self.Msqrt =    np.rollaxis(np.rollaxis(np.linalg.cholesky(np.rollaxis(M,2,0)),2,1),0,3)
+    self.MsqrtInv = np.rollaxis(np.linalg.inv(np.rollaxis(np.linalg.cholesky(np.rollaxis(M,2,0)),2,1)),0,3) 
+
     self.Vref = V
-
-
 
   def innerProduct(self,U,V):
     MV = np.einsum('ijk,...jk->...ik',self.M,V)
@@ -170,8 +173,12 @@ class createEntropyInnerProductSpace:
       sys.exit()
 
     Kern = self.innerProduct(stateVariable.qEntropy,stateVariable.qEntropy)
+    self.Kern = Kern
     Lam,E = np.linalg.eig(Kern)
     sigma = np.sqrt(Lam)
+    self.sigma = sigma
+    self.Lam = Lam
+
     rel_energy = np.cumsum(sigma**2) / np.sum(sigma**2)
     Phi = np.real( np.dot(stateVariable.flattenVariable(stateVariable.qEntropy).transpose(), np.dot(E , np.diag(1./sigma)) ))
     if (K == 0):
@@ -181,6 +188,31 @@ class createEntropyInnerProductSpace:
       entropyBasis = createEntropyBasisVariable( Phi[:,0:K].transpose() ) 
     return entropyBasis
 
+  def makeBasisViaGeneralizedSvd(self,stateVariable,K=0,tol=0):
+    if (K  == 0 and tol == 0):
+      print('Error, must specify either K or tol')
+      sys.exit()
+    if (K  != 0 and tol != 0):
+      print('Error, can only specify one of K and tol')
+      sys.exit()
+
+    MQ = np.einsum('ijk,...jk->...ik',self.Msqrt,stateVariable.qEntropy)
+    AMQ = np.einsum('ij,nj...->ni...',self.A0sqrt,MQ)
+    nSamplesU = np.shape(AMQ)[0]
+    AMQ = np.reshape(AMQ,(nSamplesU,self.nSpace))
+    U,sigma,_ = np.linalg.svd(AMQ.transpose(),full_matrices=False)
+    U = U[:,0:K]
+    U = stateVariable.unflattenVariable(U.transpose())
+    Phi = np.einsum('ij,nj...->ni...',self.A0sqrtInv,U)
+    Phi = np.einsum('ijk,...jk->...ik',self.MsqrtInv,Phi)
+    self.sigma = sigma
+    rel_energy = np.cumsum(sigma**2) / np.sum(sigma**2)
+    if (K == 0):
+      K = np.size(rel_energy[rel_energy < tol]) + 1
+      entropyBasis = createEntropyBasisVariable( stateVariable.flattenVariable(Phi[:,:] )) 
+    else:
+      entropyBasis = createEntropyBasisVariable( stateVariable.flattenVariable(Phi[:,:] )) 
+    return entropyBasis
 
 
 
@@ -231,6 +263,8 @@ class createEnergyInnerProductSpace:
     Lam,E = np.linalg.eig(Kern)
     print(Lam)
     sigma = np.sqrt(Lam)
+    self.sigma = sigma
+    self.Lam = Lam
     rel_energy = np.cumsum(sigma**2) / np.sum(sigma**2)
     Phi = np.real( np.dot(stateVariable.flattenVariable(stateVariable.qEnergy).transpose(), np.dot(E , np.diag(1./sigma)) ))
     if (K == 0):
@@ -246,6 +280,8 @@ class createL2InnerProductSpace:
     self.nVars,self.nInTri,self.nElements = nVars,nInTri,nElements
     self.nSpace = nVars*nInTri*nElements
     self.M = M
+    self.Msqrt =    np.rollaxis(np.rollaxis(np.linalg.cholesky(np.rollaxis(M,2,0)),2,1),0,3)
+    self.MsqrtInv = np.rollaxis(np.linalg.inv(np.rollaxis(np.linalg.cholesky(np.rollaxis(M,2,0)),2,1)),0,3) 
 
   def innerProduct(self,U,V):
     MV = np.einsum('ijk,...jk->...ik',self.M,V)
@@ -285,6 +321,33 @@ class createL2InnerProductSpace:
     return L2Basis
 
 
+
+  def makeBasisViaGeneralizedSvd(self,stateVariable,K=0,tol=0):
+    if (K  == 0 and tol == 0):
+      print('Error, must specify either K or tol')
+      sys.exit()
+    if (K  != 0 and tol != 0):
+      print('Error, can only specify one of K and tol')
+      sys.exit()
+
+    MQ = np.einsum('ijk,...jk->...ik',self.Msqrt,stateVariable.qConserved)
+    nSamplesU = np.shape(MQ)[0]
+    MQ = np.reshape(MQ,(nSamplesU,self.nSpace))
+    U,sigma,_ = np.linalg.svd(MQ.transpose(),full_matrices=False)
+    U = U[:,0:K]
+    U = stateVariable.unflattenVariable(U.transpose())
+    Phi = np.einsum('ijk,...jk->...ik',self.MsqrtInv,U)
+    self.sigma = sigma
+    rel_energy = np.cumsum(sigma**2) / np.sum(sigma**2)
+    if (K == 0):
+      K = np.size(rel_energy[rel_energy < tol]) + 1
+      L2Basis = createL2BasisVariable( stateVariable.flattenVariable(Phi[:,:] )) 
+    else:
+      L2Basis = createL2BasisVariable( stateVariable.flattenVariable(Phi[:,:] )) 
+    return L2Basis 
+
+
+
 class createNonDimensionalL2InnerProductSpace:
   def __init__(self,U,M,rhoInf,uInf):
     #
@@ -297,6 +360,8 @@ class createNonDimensionalL2InnerProductSpace:
     self.nVars,self.nInTri,self.nElements = nVars,nInTri,nElements
     self.nSpace = nVars*nInTri*nElements
     self.M = M
+    self.Msqrt =    np.rollaxis(np.rollaxis(np.linalg.cholesky(np.rollaxis(M,2,0)),2,1),0,3)
+    self.MsqrtInv = np.rollaxis(np.linalg.inv(np.rollaxis(np.linalg.cholesky(np.rollaxis(M,2,0)),2,1)),0,3) 
 
   def innerProduct(self,U,V):
     WV = self.weighting[None,:,None,None]**2 * V
@@ -336,5 +401,31 @@ class createNonDimensionalL2InnerProductSpace:
     else:
       L2Basis = createL2BasisVariable( Phi[:,0:K].transpose() ) 
     return L2Basis
+
+  def makeBasisViaGeneralizedSvd(self,stateVariable,K=0,tol=0):
+    if (K  == 0 and tol == 0):
+      print('Error, must specify either K or tol')
+      sys.exit()
+    if (K  != 0 and tol != 0):
+      print('Error, can only specify one of K and tol')
+      sys.exit()
+
+    
+    MQ = np.einsum('ijk,...jk->...ik',self.Msqrt,stateVariable.qConserved*self.weighting[None,:,None,None])
+    nSamplesU = np.shape(MQ)[0]
+    MQ = np.reshape(MQ,(nSamplesU,self.nSpace))
+    U,sigma,_ = np.linalg.svd(MQ.transpose(),full_matrices=False)
+    U = U[:,0:K]
+    U = stateVariable.unflattenVariable(U.transpose())
+    Phi = np.einsum('ijk,...jk->...ik',self.MsqrtInv,U)
+    Phi = Phi*(1./ self.weighting[None,:,None,None] )
+    self.sigma = sigma
+    rel_energy = np.cumsum(sigma**2) / np.sum(sigma**2)
+    if (K == 0):
+      K = np.size(rel_energy[rel_energy < tol]) + 1
+      L2Basis = createL2BasisVariable( stateVariable.flattenVariable(Phi[:,:] )) 
+    else:
+      L2Basis = createL2BasisVariable( stateVariable.flattenVariable(Phi[:,:] )) 
+    return L2Basis 
 
 
